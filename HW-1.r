@@ -4,13 +4,17 @@ library(moments)
 library(ggplot2)
 library(lubridate)
 library(data.table)
+
 # Problem 1
 n <- 600
 mu <- 0.00
-var <- 0.063^2
-rt <- rnorm(600, mu, var)
-par(mfrow=c(2,1))
+sd <- 0.063
+rt <- rnorm(600, mu, sd)
+par(mfrow=c(3,1))
 plot(rt, ylab="Log returns", xlab="Month",type="l", main="Log Returns")
+
+# part 2 
+# It has fat tail and jumps as compared to normal distribution
 
 # part 3
 #simulate using jump model 
@@ -20,17 +24,28 @@ prob <- 0.15
 mu_j <- -0.03
 sigma_j <- 0.1
 
+set.seed(1234)
 #simulate bernoulli
 B_t <- rbinom(n, 1, prob)
 theta_t <- rnorm(n,0,1)
 epsilon_t <- rnorm(n,0,1)
 J_t <- B_t * (mu_j + sigma_j * theta_t)
 r_t <- mean + sigma * epsilon_t + J_t
+
+# Missing: No Clustering and Jump y_t and y_t+1 no related
 plot(r_t, ylab="Log returns", xlab="Month",type="l", main="Simulation With Jump Model")
 simmean <- mean(r_t)
 simvar <- var(r_t)
 simskew <- skewness(r_t)
 simkurt <- kurtosis(r_t)
+
+#Market log normal return 
+mkt_monthly_raw <- read.csv("CRSP_market_monthly.csv",header = TRUE, sep=",", skip=4)[-3,]
+colnames(mkt_monthly_raw) <- c("caldt","a","b","sprtrn","indx")
+mkt_monthly <- xts(x=mkt_monthly_raw$sprtrn, ymd(mkt_monthly_raw$caldt))
+mkt_logret <- log(mkt_monthly + 1)
+# Missing: No Clustering and Jump y_t and y_t+1 no related
+plot(mkt_logret[200:800], ylab="Log returns", xlab="Month",type="l", main = "Market Return")
 
 # problem 2, 1(a)
 # using adjusted price for getting return
@@ -59,7 +74,7 @@ testSkewness <- function(skew_val,size){
 }
 
 testKurtosis <- function(kurt_val, size){
-  return(kurt_val/sqrt(24/size))
+  return((kurt_val-3)/sqrt(24/size))
 }
 
 Jarque_Bera_test <- function(skew_val, kurt_val, size){
