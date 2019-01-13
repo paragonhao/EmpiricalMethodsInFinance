@@ -4,6 +4,8 @@ library(moments)
 library(ggplot2)
 library(lubridate)
 library(data.table)
+library(sandwich)
+
 
 # Problem 1
 n <- 600
@@ -89,31 +91,29 @@ tval_dbv_kurt <- testKurtosis(kurtosis(dbv_logret), length(dbv_logret))    # rej
 tval_gspc_kurt <- testKurtosis(kurtosis(gspc_logret), length(gspc_logret)) # reject
 
 dbv_jb_result <- Jarque_Bera_test(skew_val = skewness(dbv_logret), kurt_val = kurtosis(dbv_logret), size = length(dbv_logret)) # reject
-gspc_jb_result <- Jarque_Bera_test(skew_val = kurtosis(gspc_logret), kurt_val = kurtosis(gspc_logret), size = length(gspc_logret)) #reject
-
-#caluculate skew and kurtosis for sp500 index from 2006-09-25 - 2015-12-28
-sp500_raw <- read.csv("CRSP_market_daily.csv",header = TRUE, sep=",")
-sp500_ts <- xts(x= sp500_raw$sprtrn, ymd(sp500_raw$caldt))["2006-09-26/2015-12-28"]
-sp500_logret <- log(sp500_ts + 1)
+gspc_jb_result <- Jarque_Bera_test(skew_val = skewness(gspc_logret), kurt_val = kurtosis(gspc_logret), size = length(gspc_logret)) #reject
 
 tval_sp500_skew <- testSkewness(skewness(sp500_logret), length(sp500_logret)) # reject
 tval_sp500_kurt <- testKurtosis(kurtosis(sp500_logret), length(sp500_logret)) # reject
-sp500_jb_result <- Jarque_Bera_test(skew_val = kurtosis(sp500_logret), kurt_val = kurtosis(sp500_logret), size = length(sp500_logret)) #reject
 
 # 3
 DT <- data.table(
   tests = c("Skewness", "t-test","Kurtosis", "t-test", "JB-test"),
   DBV = c(skewness(dbv_logret), tval_dbv_skew, kurtosis(dbv_logret), tval_dbv_kurt, dbv_jb_result),
-  GSPC = c(skewness(gspc_logret), tval_gspc_skew, kurtosis(gspc_logret), tval_gspc_kurt, gspc_jb_result),
-  SP500 = c(skewness(sp500_logret), tval_sp500_skew, kurtosis(sp500_logret), tval_sp500_kurt, sp500_jb_result)
+  GSPC = c(skewness(gspc_logret), tval_gspc_skew, kurtosis(gspc_logret), tval_gspc_kurt, gspc_jb_result)
 )
 DT
 
 # 4
+# Sharp ratio only uses mean and variance, the first two moments. 
+# DBV is more risk because of higher kurtosis which leads a fat tail. 
+# Also currency trading is highly leverage.
 
 # 5
-
-lm(dbv_logret ~ gspc_logret)
+# 
+reg <- lm(as.numeric(dbv_logret) ~ as.numeric(gspc_logret))
+summary(reg)
+white_stderr = sqrt(diag(vcovHC(x=reg, type = "HC")))
 
 
 
