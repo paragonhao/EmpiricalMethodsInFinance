@@ -1,0 +1,228 @@
+---
+header-includes:
+- \usepackage{amssymb, amsmath, amsthm}
+- \usepackage{tabu}
+- \newcommand{\E}{\mathbb{E}}
+- \newcommand{\var}{{\rm Var}}
+- \newcommand{\N}{\mathcal{N}}
+output: pdf_document
+---
+
+\noindent \begin{tabu} to \textwidth {@{}X[4 l] @{}X[r]}
+  \textbf{HW 2}           & \\ 
+  \textbf{MFE 407: Empirical Methods in Finance}   & \\ 
+  \textbf{Professor Lochstoer}         & \\
+  \textbf{Group 6}          &\\
+  \textbf{Students: Xiahao Wang, Juan Manuel Ferreyra Maspero, Xinyue Zhu, Yichu Li, Mu Lin}
+\end{tabu}
+
+
+##Problem 1 AR(p) Process:
+1.(a)
+```{r}
+phi0 <- 0
+phi1 <- 1.1
+phi2 <- -0.25
+
+size <- 10000
+w <- rep(0, size)
+
+w[1] <- 0.5 
+w[2] <- 0.1
+
+epsilon <- rnorm(size, 0,1)
+
+for(i in 3:size) {
+  w[i] = phi0 + phi1 * w[i-1] + phi2 * w[i-2] + epsilon[i]
+}
+
+acf(w, lag.max = 20)
+
+```
+
+1.(b)
+
+```{r}
+x1 <- (phi1 + sqrt(phi1^2 + 4 * phi2))/(-2 * phi2)
+x2 <- (phi1 - sqrt(phi1^2 + 4 * phi2))/(-2 * phi2)
+
+w1 <- 1/x1
+w2 <- 1/x2
+w1
+w2
+```
+The two roots are real, so the process is stationary. Also based on the plot, the series converges
+
+Also plot the graph and acf:
+```{r}
+ar2 <- arima.sim(model = list(order = c(2,0,0), ar=c(1.1,-0.25)), n = 200)
+plot(ar2)
+acf(ar2)
+```
+This shows that it is stationary.
+
+(c)
+After expanding the series:
+$\frac{\partial X_t}{\partial \varepsilon}= \phi_1^6 + 5 \phi_1^4\phi_2 + 6\phi_1^2\phi_2^2 + \phi_2^3$
+
+```{r}
+multiplier1 <- phi1^6 + 5 * phi1^4 *phi2 + 6 * phi1^2 * phi2^2 + phi2^3
+cat("the multiplier is",multiplier1)
+```
+(d)
+```{r}
+phi1 <- 0.9
+phi2 <- 0.8
+x1 <- (phi1 + sqrt(phi1^2 + 4 * phi2))/(-2 * phi2)
+x2 <- (phi1 - sqrt(phi1^2 + 4 * phi2))/(-2 * phi2)
+multiplier2 <- phi1^6 + 5 * phi1^4 *phi2 + 6 * phi1^2 * phi2^2 + phi2^3
+cat("The multiplier is", multiplier2)
+cat("The two roots are", 1/x1,1/x2)
+```
+One of the roots are bigger than 1, hence the process is not stationary.
+
+
+##Problem 2
+
+1.
+
+```{r}
+library(lubridate)
+library(xts)
+library(forecast)
+par(mfrow=c(2,2))
+ppi_raw <- read.csv("PPIFGS.csv")
+ppi_xts <- xts(x=as.double(ppi_raw$VALUE), ymd(ppi_raw$DATE))
+#2.a
+plot(ppi_xts, main ="Main PPI in levels")
+#2.b
+ppi_diff <- diff(ppi_xts)[-1]
+plot(ppi_diff, main = "Change in PPI")
+#2.c
+ppi_log <- log(ppi_xts)
+plot(ppi_diff, main = "Log in PPI")
+#2.d
+ppi_diff_log <- diff(ppi_log)[-1]
+plot(ppi_diff_log, main = "Change Log in PPI")
+```
+
+2.
+Change Log in PPI 2.(d) is covariance stationary.
+2(a) has no constant mean 
+2(b), 2(c) don't have constant variance.
+
+3.
+
+```{r}
+acf(ppi_diff_log, lag.max = 12)
+```
+The ACF of changes of log(PPI) converges as lags increase and starts to diminish below one standard deviation (s.d) when lag is greater than 4. There might exist some seasonality in prior periods as we observe ACF greater than 1 s.d for lag = 11.
+
+4.
+
+```{r}
+pacf(ppi_diff_log, lag.max = 30)
+```
+We tried to plot PACF with 30 lags, and identify that there is no seasonality in the data.
+On the PACF plot, it is still significant after 3 lags and also significant on 11th lag. 
+We would like to try different models (AR(3), AR(1:3,11) to see which one fits better. 
+
+5.
+
+Choose AR(3) and AR with lag 1,2,3 and 11
+```{r}
+ar3 <- arima(ppi_diff_log, order=c(3,0,0))
+ar12311<- arima(ppi_diff_log, order=c(11,0,0),
+                fixed=c(NA,NA,NA,0,0,0,0,0,0,0,NA,NA),
+                transform.pars = FALSE)
+cat("Coefficent for Ar3 is:\n")
+ar3$coef
+cat("##################################################\n")
+cat("Coefficent for AR with lag on (1,2,3,11) is:\n")
+ar12311$coef
+cat("##################################################\n")
+cat("Standard error for Ar3 is:\n")
+sqrt(ar3$sigma2)
+cat("##################################################\n")
+cat("Standard error for AR with lag on (1,2,3,11) is:\n")
+sqrt(ar12311$sigma2)
+
+ar3roots <-polyroot(c(1,-ar3$coef[1:3]))
+ar12311roots <-polyroot(c(1,-ar12311$coef[1:11]))
+cat("##################################################\n")
+cat("Mod for Ar3 is:\n")
+Mod(1/ar3roots)
+cat("Mod for AR with lag on (1,2,3,11) is:\n")
+Mod(1/ar12311roots)
+```
+As the mod of the characteristic roots are smaller than 1, so we conclude that these models are stationary 
+
+5.b
+Plot both AR plots and ACF to show that residual is white noise and has no autocorrelation
+```{r}
+par(mfrow=c(2,2))
+plot(ar3$residuals, main="AR(3) Residual plot")
+acf(ar3$residuals, main="ACF AR(3) Residual plot")
+plot(ar12311$residuals, main="AR(1:3,11) Residual plot")
+acf(ar12311$residuals, main="ACF AR(1:3,11) Residual plot")
+```
+
+5.c
+
+```{r}
+# Test Normality
+Box.test(ar3$residuals, lag=8, type='Ljung')
+Box.test(ar3$residuals, lag=12, type='Ljung')
+AIC(ar3)
+BIC(ar3)
+Box.test(ar12311$residuals, lag=8, type='Ljung')
+Box.test(ar12311$residuals, lag=12, type='Ljung')
+AIC(ar12311)
+BIC(ar12311)
+```
+Choose AR with lag on 1,2,3,11 because of lower AIC & BIC and p-value greater than 5% siginificance level. 
+
+6. 
+Fit AR(3) and AR model with lag 1,2,3 and 11
+```{r}
+ppi_xts2005 <- ppi_xts["1947-04-01/2005-12-31"]
+ppi_diff_log_2005 <- diff(log(ppi_xts2005))[-1]
+num <- length(ppi_diff_log) - length(ppi_diff_log_2005)
+
+traindata <- ppi_diff_log["2005-12-31/2015"]
+
+# fit for the models
+ar3_2005<- arima(ppi_diff_log_2005, order=c(3,0,0))
+ar12311_2005<- arima(ppi_diff_log_2005, order=c(11,0,0),
+                fixed=c(NA,NA,NA,0,0,0,0,0,0,0,NA,NA),transform.pars = FALSE)
+
+fitar3 <- forecast(ar3_2005, h=39)
+
+fitar12311 <-forecast(ar12311_2005, h=num)
+
+e_ar3 <- sum((as.double(traindata) - fitar3$mean)^2) /num
+e_ar12311 <- sum((as.double(traindata) - fitar12311$mean)^2) /num
+cat("##################################################\n")
+cat("MSPE AR(3) is:",e_ar3,"\n")
+cat("MSPE AR(1,2,3,11) is:",e_ar12311,"\n")
+```
+
+Simulate Random Walk (39 steps)
+```{r} 
+e_rw <- rep(0,10000)
+
+for(j in 1: 10000){
+  result <- rep(0,num+1)
+  result[1] <- last(ppi_xts2005)
+  for(i in 2:40){
+    result[i] = result[i-1] + rnorm(1,0,1)
+  }
+  rw <- diff(log(result))
+  e_rw[j] <- sum((as.double(traindata) - rw)^2) /num
+}
+
+cat("Average mean of MSPE of 10000 random walk is:", mean(e_rw),"\n")
+```
+Hence our model is definitely better than random walk.
+
+
