@@ -94,16 +94,16 @@ par(mfrow=c(2,2))
 ppi_raw <- read.csv("PPIFGS.csv")
 ppi_xts <- xts(x=as.double(ppi_raw$VALUE), ymd(ppi_raw$DATE))
 #2.a
-plot(ppi_xts, main ="Main PPI in levels")
+plot(ppi_xts, main ="PPI", cex=0.3)
 #2.b
 ppi_diff <- diff(ppi_xts)[-1]
-plot(ppi_diff, main = "Change in PPI")
+plot(ppi_diff, main = "Change in PPI", cex=0.3)
 #2.c
 ppi_log <- log(ppi_xts)
-plot(ppi_diff, main = "Log in PPI")
+plot(ppi_diff, main = "Log in PPI", cex=0.3)
 #2.d
 ppi_diff_log <- diff(ppi_log)[-1]
-plot(ppi_diff_log, main = "Change Log in PPI")
+plot(ppi_diff_log, main = "Change Log in PPI", cex=0.3)
 ```
 
 2.
@@ -123,6 +123,7 @@ The ACF of changes of log(PPI) converges as lags increase and starts to diminish
 ```{r}
 pacf(ppi_diff_log, lag.max = 30)
 ```
+
 We tried to plot PACF with 30 lags, and identify that there is no seasonality in the data.
 On the PACF plot, it is still significant after 3 lags and also significant on 11th lag. 
 We would like to try different models (AR(3), AR(1:3,11) to see which one fits better. 
@@ -170,7 +171,6 @@ acf(ar12311$residuals, main="ACF AR(1:3,11) Residual plot")
 5.c
 
 ```{r}
-# Test Normality
 Box.test(ar3$residuals, lag=8, type='Ljung')
 Box.test(ar3$residuals, lag=12, type='Ljung')
 AIC(ar3)
