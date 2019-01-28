@@ -12,13 +12,21 @@ n <- 600
 mu <- 0.00
 sd <- 0.063
 rt <- rnorm(600, mu, sd)
-par(mfrow=c(3,1))
-plot(rt, ylab="Log returns", xlab="Month",type="l", main="Log Returns")
 
 # part 2 
 # It has fat tail and jumps as compared to normal distribution
 
 # part 3
+#Market log normal return 
+mkt_monthly_raw <- read.csv("CRSP_market_monthly.csv",header = TRUE, sep=",", skip=4)[-3,]
+colnames(mkt_monthly_raw) <- c("caldt","a","b","sprtrn","indx")
+mkt_monthly <- xts(x=mkt_monthly_raw$sprtrn, ymd(mkt_monthly_raw$caldt))
+mkt_logret <- log(mkt_monthly + 1)
+# Missing: No Clustering and Jump y_t and y_t+1 no related
+plot(density(mkt_logret[200:800]), ylab="Log returns", xlab="Month",type="l", main = "Market Return",col="blue")
+lines(density(rt),col="green")
+
+
 #simulate using jump model 
 mean <- 0.012
 sigma <- 0.05
@@ -40,14 +48,6 @@ simmean <- mean(r_t)
 simvar <- var(r_t)
 simskew <- skewness(r_t)
 simkurt <- kurtosis(r_t)
-
-#Market log normal return 
-mkt_monthly_raw <- read.csv("CRSP_market_monthly.csv",header = TRUE, sep=",", skip=4)[-3,]
-colnames(mkt_monthly_raw) <- c("caldt","a","b","sprtrn","indx")
-mkt_monthly <- xts(x=mkt_monthly_raw$sprtrn, ymd(mkt_monthly_raw$caldt))
-mkt_logret <- log(mkt_monthly + 1)
-# Missing: No Clustering and Jump y_t and y_t+1 no related
-plot(mkt_logret[200:800], ylab="Log returns", xlab="Month",type="l", main = "Market Return")
 
 # problem 2, 1(a)
 # using adjusted price for getting return
