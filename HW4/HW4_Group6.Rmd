@@ -1,0 +1,183 @@
+---
+header-includes:
+- \usepackage{amssymb, amsmath, amsthm}
+- \usepackage{tabu}
+- \newcommand{\E}{\mathbb{E}}
+- \newcommand{\var}{{\rm Var}}
+- \newcommand{\N}{\mathcal{N}}
+output: pdf_document
+---
+
+\noindent \begin{tabu} to \textwidth {@{}X[4 l] @{}X[r]}
+  \textbf{HW 4}           & \\ 
+  \textbf{MFE 407: Empirical Methods in Finance}   & \\ 
+  \textbf{Professor Lochstoer}         & \\
+  \textbf{Group 6}          &\\
+  \textbf{Students: Xiahao Wang, Juan Manuel Ferreyra Maspero, Xinyue Zhu, Yichu Li, Mu Lin}
+\end{tabu}
+
+
+##Problem 1
+1.
+To find a parsimonious model for the conditional volatility of the daily log return. 
+
+#Step 1: 
+Find the daily log return using the following code:
+```{r}
+library(lubridate)
+library(xts)
+library(rugarch)
+library(forecast)
+library(lmtest)
+library(TSA)
+```
+
+
+```{r}
+# Read in data
+rawdata <- read.csv("Currency_fund_prices.csv", header=TRUE, sep = ",")
+
+# Get log Return
+fundPrices <- rawdata[,c(1,7)] 
+logRet <- diff(log(fundPrices$Adj.Close))
+logRet_vol <- xts(x=logRet, dmy(fundPrices$Date[-1]))
+
+plot(logRet_vol,type ="l",main="Daily Log Return")
+logRet_vol <- xts(x=logRet_vol, dmy(fundPrices$Date[-1]))
+```
+
+#Step 2: 
+Determine the ARMA model for the log return process
+ACF plot of the daily log return:
+```{r}
+acf(logRet_vol,main="Daily Log Return ACF")
+```
+
+PACF plot of the daily log return:
+```{r}
+pacf(logRet_vol,main="Daily Log Return PACF")
+```
+Based on PACF and ACF, it is hard to determine the AR MA terms.
+
+In this case, we use auto.arima function to determine the best model based on AIC and BIC
+```{r}
+auto_model <- auto.arima(logRet_vol)
+summary(auto_model)
+coeftest(auto_model)
+```
+
+ARMA(3,0,3) is suggested and all the coefficients are statistically significant.
+
+#Step 3:
+Determine the best garch model to use:
+We use ugarchfit to check the model.
+We will be checking whether the coefficients are statistically significant.  
+We also need to check AIC/BIC, Weighted Ljung-Box Test on Standardized Residuals.
+
+After trying out a few models, we determine the model eGarch(1,1) with t distribution to be the most appropriate model so far given the statistics.
+
+```{r}
+garch_model <- ugarchspec(variance.model = list(model = "eGARCH",garchOrder = c(1,1)),
+                          mean.model = list(armaOrder = c(3,0,3)),
+                          distribution.model = "std")
+
+(garchfit <- ugarchfit(data = logRet_vol, spec = garch_model))
+```
+
+
+
+2.
+Using the model above, we have forecast the 20-trading-day log return volatility
+
+```{r}
+
+garchForecast <- ugarchforecast(garchfit,n.ahead = 20)
+plot(garchForecast,which=3)
+cat("20-trading-day log return volatility
+on Jan 11, 2016 (end of day) is: ", sqrt(sum(sigma(garchForecast)^2)))
+```
+
+##Problem 2
+1. 
+(a)
+```{r}
+industry <- read.csv("48_Industry_Portfolios.csv")
+three_fac <- read.csv("F-F_Research_Data_Factors.csv")
+
+
+ind_ret<-industry[which(industry$X==196001):which(industry$X==201512),] # extract relevant year
+ind_ret<-ind_ret[,-c(4,12,16,21,27,28,34,39)] # remove -99.99
+three_fac<-as.data.frame(three_fac[which(three_fac$X==196001):which(three_fac$X==201512),]) # extract relevant year
+# to merge data
+data2 <- merge(ind_ret,three_fac,by="X")
+
+beta<-r_sqr<-alpha<-c(0)
+num_ind<-length(ind_ret[1,])-1
+
+for(i in 1:num_ind){
+  ex_ret=data2[,i+1]-as.numeric(as.character(data2$RF))
+  out=lm(ex_ret~as.numeric(as.character(data2$Mkt.RF)))
+  beta[i]=out$coef[2]
+  alpha[i]=out$coef[1]
+  r_sqr[i]=anova(out)[1,2]/(anova(out)[1,2]+anova(out)[2,2]) #SSR/SST
+}
+
+# 2 (a) Plot the industry betas
+plot(seq(1,num_ind,1),col="blue",y=beta,pch=14,type="h",main="Industry Beta",xlab="Industry Number")
+abline(h=2*sd(beta),col="red")
+abline(h=-2*sd(beta),col="red")
+```
+
+(b)
+```{r}
+# 2 (b) What is the range of estimated betas? What are the min, max, and mean regression R^2 across industries?
+cat("The range of the estimated betas is from the min", min(beta),"\n to the max",max(beta),"with mean of ",mean(beta))
+cat("The regressed R^2 accross industries is from the min", min(r_sqr),"\n to the max",max(r_sqr),"with mean of ",mean(r_sqr))
+```
+
+(c)
+```{r}
+# 2 (c) Plot estimated alphas (intercept terms) against estimated betas
+plot(y=alpha,x=beta,type="p",pch=14,col="dodgerblue",
+     main="Alpha Against Beta Across Industries")
+```
+
+It appears the higher the beta, the smaller the alpha. It is noted that the alpha does not appear to converge to 0, which is assumed by the CAPM model.
+
+
+2.
+
+```{r}
+library(DataAnalytics)
+# 3. Run rolling regressions of 5 years of data.
+beta_matrix<-matrix(0,num_ind,11)
+for(i in 1:num_ind){
+  for(k in 1:11){
+  ex_ret=data2[(60*(k-1)+1):(60*k-1),(i+1)] -
+    as.numeric(as.character(data2$RF[(60*(k-1)+1):(60*k-1)]))
+  mkt=as.numeric(as.character(data2$Mkt.RF[(60*(k-1)+1):(60*k-1)]))
+  out=lm(ex_ret~mkt)
+  beta_matrix[i,k]=out$coef[2]
+  }
+}
+
+# Autocorrelation of betas per adjacent 5-yr rolling windows per industry
+# AR(1)
+beta_corr<-c(0)
+for(i in 1:(num_ind)){
+  beta_corr[i]=lm(beta_matrix[i,]~back(beta_matrix[i,]))$coef[2]
+}
+
+myplot <- barplot(beta_corr, col="blue", ,xlab="Industry number",
+                  main="Autocorrelation of 5-yr rolling betas per Industry",
+                  ylim=c(-0.5,1))
+axis(1, at = myplot, labels = 1:num_ind)
+abline(h=0,col="pink")
+abline(h=sd(beta_corr),col="red")
+abline(h=-sd(beta_corr),col="red")
+text(c(10,0.2),"+1 sd",col="red")
+text(c(10,-0.2),"-1 sd",col="red")
+```
+
+Per our observation, betas for some industries (eg, Industry 6, FUN) tend to lie within +/-1 sd around 0. For some other industries (eg, Industry 17, Mach), however, their betas tend to be highly correlated to prior period and appear to be stable over time. One among all possible reasons to explain such divergence in stability results from the fact that some industries do not appear to have extensive exposures to market movements. Therefore, market fluctuation only impacts the stock performance of such industries to some extend, which yields less comovements and unstable betas.
+
